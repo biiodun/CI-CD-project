@@ -147,27 +147,121 @@ jobs:
       # Here's where you will add some code to rollback on failure
       - destroy-environment
   
-  # configure-infrastructure:
-  #   docker:
-  #     - image: circleci/node:13.8.0
-  #   steps:
-  #     - checkout
-  #     - attach_workspace:
-  #         at: /inventory.txt
-  #     # Add ssh keys with fingerprint
-  #     # attach workspace
-  #     - run:
-  #         name: Install dependencies
-  #         command: |
-  #           sudo apt install -y tar gzip
-  #           sudo apt install ansible
+  configure-infrastructure:
+    docker:
+      - image: python:3.7-alpine3.11
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["1c:74:ee:f0:a7:70:8d:ba:5a:5c:eb:0b:1d:8d:4d:c6"] # You can get this ID in the section where you registered the SSH Key
+      - run:
+          name: Install dependencies
+          command: |
+            # install the dependencies needed for your playbook
+            apk add --update ansible 
+      # - attach_workspace:
+      #     at: /inventory.txt
+      # Add ssh keys with fingerprint
+      # attach workspace
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt install -y tar gzip
+            sudo apt install ansible
+
+      - run:
+          name: Configure server
+          command: |
             
-  #     - run:
-  #         name: Configure server
-  #         command: |
-  #           # Your code here
-  #           exit 1
+            ansible-playbook configure-server.yml
+            
+      # Here's where you will add some code to rollback on failure 
+
+  run-migrations:
+    docker:
+      - image: circleci/node:13.8.0
+    steps:
+      - checkout
+      - run:
+          name: Run migrations
+          command: |
+            cd backend
+            npm install
+            npm run migrations > migrations_dump.txt
+      # - run:
+      #     name: Send migration results to memstash
+      #     command: |
+      #       # Your code here
+      #       exit 1
+     # Here's where you will add some code to rollback on failure   
+  
+  deploy-frontend:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            yum install -y tar gzip
+      - run:
+          name: Install python_dependencies
+          command: |
+            yum install python
+
+      - run:
+          name: Get backend url
+          command: |
+            # your code here
+            export API_URL="http://54.236.207.124:3030"
+            echo API_URL="http://54.236.207.124:3030" >> frontend/.env
+            cat frontend/.env
+      - run:
+          name: Deploy frontend objects
+          command: |
+            cd frontend
+            npm install
+            npm run build
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
       # Here's where you will add some code to rollback on failure      
+                    
+  deploy-backend:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["1c:74:ee:f0:a7:70:8d:ba:5a:5c:eb:0b:1d:8d:4d:c6"] # You can get this ID in the section where you registered the SSH Key
+      
+      # attach workspace
+    
+      - run:
+          name: Install dependencies
+          command: |
+            yum install -y tar gzip
+      - run:
+          name: Install python_dependencies
+          command: |
+            yum install python
+
+      - run:
+          name: Install ansible_dependency
+          command: |
+            yum install ansible
+
+      - run:
+          name: Deploy backend
+          command: |
+            cd backend
+            npm i
+            npm run build
+            cd ..
+            tar -C backend -czvf artifact.tar.gz .
+            ansible-playbook deploy-backend.yml
+
+      # Here's where you will add some code to rollback on failure  
+        
 
       
             
@@ -186,4 +280,6 @@ workflows:
       #     requires: [build-frontend]
       - deploy-infrastructure:
           requires: [test-frontend, test-backend]
+      - configure-infrastructure
+      - run-migrations
           
