@@ -166,8 +166,8 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            sudo apt install -y tar gzip
-            sudo apt install ansible
+            yum install -y tar gzip
+            yum install ansible
 
       - run:
           name: Configure server
@@ -280,6 +280,8 @@ workflows:
       #     requires: [build-frontend]
       - deploy-infrastructure:
           requires: [test-frontend, test-backend]
-      - configure-infrastructure
-      - run-migrations
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
+      - run-migrations:
+          requires: [configure-infrastructure]
           
